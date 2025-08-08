@@ -7,96 +7,118 @@ x-daemon: &peatio-daemon
     - ../config/peatio.env
   volumes:
     - ../config/peatio:/opt/peatio/config:ro
+  networks:
+    - opendax_default
 
 services:
   blockchain:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/daemons.rb blockchain"
 
   cron_job:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     environment:
-    - VAULT_TOKEN=${PEATIO_CRYPTO_VAULT_TOKEN}
+      - VAULT_TOKEN=${PEATIO_CRYPTO_VAULT_TOKEN}
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/daemons.rb cron_job"
 
   deposit:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     environment:
-    - VAULT_TOKEN=${PEATIO_CRYPTO_VAULT_TOKEN}
+      - VAULT_TOKEN=${PEATIO_CRYPTO_VAULT_TOKEN}
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/daemons.rb deposit"
 
   upstream:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     environment:
-    - VAULT_TOKEN=${PEATIO_UPSTREAM_VAULT_TOKEN}
+      - VAULT_TOKEN=${PEATIO_UPSTREAM_VAULT_TOKEN}
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/daemons.rb upstream"
 
   deposit_coin_address:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     environment:
-    - VAULT_TOKEN=${PEATIO_CRYPTO_VAULT_TOKEN}
+      - VAULT_TOKEN=${PEATIO_CRYPTO_VAULT_TOKEN}
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/amqp_daemon.rb deposit_coin_address"
 
   withdraw_coin:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     environment:
-    - VAULT_TOKEN=${PEATIO_CRYPTO_VAULT_TOKEN}
+      - VAULT_TOKEN=${PEATIO_CRYPTO_VAULT_TOKEN}
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/amqp_daemon.rb withdraw_coin"
 
   influx_writer:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/amqp_daemon.rb influx_writer"
 
   rango:
-    restart: always
     image: "<%= @config['images']['rango'] %>"
+    restart: always
     env_file:
       - ../config/rango.env
+    ports:
+      - "4242:4242"      # WebSocket port for testing locally
+      - "8080:8080"      # HTTP port for testing locally
+    labels:
+ 
+      - "traefik.enable=true"
+      - "traefik.docker.network=opendax_default"
+
+      # Unified HTTPS + WebSocket traffic routing
+      - "traefik.http.routers.rango.rule=Host(`app.temx.org`) && PathPrefix(`/api/v2/rango`)"
+      - "traefik.http.routers.rango.entrypoints=websecure"
+      - "traefik.http.routers.rango.tls=true"
+      - "traefik.http.routers.rango.tls.certresolver=myresolver"
+      - "traefik.http.services.rango.loadbalancer.server.port=4242"
+    networks:
+      - opendax_default
 
 <% unless @config['finex']['enabled'] %>
   matching:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     environment:
-    - VAULT_TOKEN=${PEATIO_MATCHING_VAULT_TOKEN}
+      - VAULT_TOKEN=${PEATIO_MATCHING_VAULT_TOKEN}
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/amqp_daemon.rb matching"
 
   order_processor:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     environment:
-    - VAULT_TOKEN=${PEATIO_MATCHING_VAULT_TOKEN}
+      - VAULT_TOKEN=${PEATIO_MATCHING_VAULT_TOKEN}
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/amqp_daemon.rb order_processor"
 
   trade_executor:
-    << : *peatio-daemon
+    <<: *peatio-daemon
     environment:
-    - VAULT_TOKEN=${PEATIO_MATCHING_VAULT_TOKEN}
+      - VAULT_TOKEN=${PEATIO_MATCHING_VAULT_TOKEN}
     command: bash -c "bin/link_config && bundle exec ruby lib/daemons/amqp_daemon.rb trade_executor"
 <% end %>
 
   mailer:
-    restart: always
     image: "<%= @config['images']['barong'] %>"
+    restart: always
     env_file:
       - ../config/barong.env
     volumes:
-      -  ../config/secrets:/secrets:ro
-      -  ../config/mailer/templates:/home/app/app/views/postmaster
-      -  ../config/mailer.yml:/home/app/config/mailer.yml
+      - ../config/secrets:/secrets:ro
+      - ../config/mailer/templates:/home/app/app/views/postmaster
+      - ../config/mailer.yml:/home/app/config/mailer.yml
     command: bash -c "bin/mailer run"
+    networks:
+      - opendax_default
 
   applogic_sidekiq:
-    restart: always
     image: "<%= @utils['images']['applogic'] %>"
+    restart: always
     env_file:
       - ../config/barong.env
     volumes:
       - ../config/applogic/management_api_v2.yml:/home/app/config/management_api_v2.yml
       - ../config/applogic/schedule.yml:/home/app/config/schedule.yml
     command: bash -c "bundle exec sidekiq"
+    networks:
+      - opendax_default
 
   barong_sidekiq:
-    restart: always
     image: "<%= @config['images']['barong'] %>"
+    restart: always
     env_file:
       - ../config/barong.env
     volumes:
@@ -106,12 +128,20 @@ services:
       - ../config/barong/authz_rules.yml:/home/app/config/authz_rules.yml
       - ../config/barong/management_api.yml:/home/app/config/management_api.yml
     command: bash -c "bundle exec sidekiq"
+    networks:
+      - opendax_default
 
   listener:
-    restart: always
     image: "<%= @utils['images']['applogic'] %>"
+    restart: always
     env_file:
       - ../config/applogic.env
     volumes:
       - ../config/applogic/management_api_v2.yml:/home/app/config/management_api_v2.yml
     command: bash -c "bundle exec rake event_api_listener"
+    networks:
+      - opendax_default
+
+networks:
+  opendax_default:
+    external: true

@@ -40,14 +40,13 @@ namespace :service do
     def start
       puts '----- Starting dependencies -----'
       sh 'docker-compose up -d vault db redis rabbitmq'
-      sleep 7 # time for db to start, we can get connection refused without sleeping
+      sleep 7
     end
 
     def stop
       puts '----- Stopping dependencies -----'
       sh 'docker-compose rm -fs vault db redis rabbitmq'
     end
-
 
     @switch.call(args, method(:start), method(:stop))
   end
@@ -147,7 +146,7 @@ namespace :service do
     end
   end
 
-  desc 'Run mikro app (barong, peatio)'
+  desc 'Run mikro app (barong, peatio, gateway)'
   task :app, [:command] => [:backend, :setup] do |task, args|
     args.with_defaults(:command => 'start')
 
@@ -208,7 +207,7 @@ namespace :service do
     end
 
     def stop
-      puts '----- Stopping Utils -----'
+      puts '----- Stopping utils -----'
       sh 'docker-compose rm -fs mailer'
     end
 
@@ -269,6 +268,42 @@ namespace :service do
 
     @switch.call(args, method(:start), method(:stop))
   end
+
+  desc '[Custom] Run temx_landing static site'
+  task :landing, [:command] do |task, args|
+    args.with_defaults(:command => 'start')
+
+    def start
+      puts '----- Starting temx_landing -----'
+      sh 'docker-compose up -d temx_landing'
+    end
+
+    def stop
+      puts '----- Stopping temx_landing -----'
+      sh 'docker-compose rm -fs temx_landing'
+    end
+
+    @switch.call(args, method(:start), method(:stop))
+  end
+
+  ### ✅ NEW
+  desc '[Custom] Run temx_dashboard static site'
+  task :dashboard, [:command] do |task, args|
+    args.with_defaults(:command => 'start')
+
+    def start
+      puts '----- Starting temx_dashboard -----'
+      sh 'docker-compose up -d temx_dashboard'
+    end
+
+    def stop
+      puts '----- Stopping temx_dashboard -----'
+      sh 'docker-compose rm -fs temx_dashboard'
+    end
+
+    @switch.call(args, method(:start), method(:stop))
+  end
+
   desc 'Set up and start all services with dependencies (does not run optional ones)'
   task :all, [:command] => ['versions:update', 'render:config'] do |task, args|
     args.with_defaults(:command => 'start')
@@ -285,6 +320,8 @@ namespace :service do
       Rake::Task["service:tower"].invoke('start')
       Rake::Task["service:utils"].invoke('start')
       Rake::Task["service:daemons"].invoke('start')
+      Rake::Task["service:landing"].invoke('start')
+      Rake::Task["service:dashboard"].invoke('start')  # ✅ NEW
     end
 
     def stop
@@ -297,6 +334,8 @@ namespace :service do
       Rake::Task["service:tower"].invoke('stop')
       Rake::Task["service:utils"].invoke('stop')
       Rake::Task["service:daemons"].invoke('stop')
+      Rake::Task["service:landing"].invoke('stop')
+      Rake::Task["service:dashboard"].invoke('stop')  # ✅ NEW
     end
 
     @switch.call(args, method(:start), method(:stop))

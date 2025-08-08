@@ -1,0 +1,24 @@
+version: '3.6'
+
+services:
+  temx_landing:
+    image: nginx:alpine
+    restart: always
+    container_name: temx_landing
+    volumes:
+      - /home/app/temx-landing/build:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.temx_landing.rule=Host(`temx.org`)"
+      - "traefik.http.routers.temx_landing.entrypoints=web,websecure"
+      <% if @config.dig('ssl', 'enabled') %>
+      - "traefik.http.routers.temx_landing.tls.certresolver=myresolver"
+      <% end %>
+      - "traefik.http.services.temx_landing.loadbalancer.server.port=80"
+      - "traefik.docker.network=opendax_default"
+    networks:
+      - opendax_default
+
+networks:
+  opendax_default:
+    external: true

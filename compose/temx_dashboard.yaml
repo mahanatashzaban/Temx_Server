@@ -1,0 +1,24 @@
+version: '3.6'
+
+services:
+  temx_dashboard:
+    image: nginx:alpine
+    restart: always
+    container_name: temx_dashboard
+    volumes:
+      - /home/app/temx-dashboard/build:/usr/share/nginx/html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.temx_dashboard.rule=Host(`panel.temx.org`)"
+      - "traefik.http.routers.temx_dashboard.entrypoints=web,websecure"
+      
+      - "traefik.http.routers.temx_dashboard.tls.certresolver=myresolver"
+      
+      - "traefik.http.services.temx_dashboard.loadbalancer.server.port=80"
+      - "traefik.docker.network=opendax_default"
+    networks:
+      - opendax_default
+
+networks:
+  opendax_default:
+    external: true

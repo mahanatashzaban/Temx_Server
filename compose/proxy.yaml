@@ -1,0 +1,38 @@
+services:
+  proxy:
+    image: traefik:2.1.8
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "9090:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      
+      - /home/app/opendax/config/acme.json:/acme.json
+      
+    command:
+      - "--log.level=DEBUG"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.websecure.address=:443"
+      - "--entryPoints.traefik.address=:8080"
+      - "--entryPoints.web.forwardedHeaders.insecure=true"
+      - "--entryPoints.websecure.forwardedHeaders.insecure=true"
+      
+      - "--certificatesresolvers.myresolver.acme.email=admin@temx.org"
+      - "--certificatesresolvers.myresolver.acme.storage=/acme.json"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.dashboard.entrypoints=traefik"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      
+      - "traefik.docker.network=opendax_default"
+    networks:
+      - opendax_default
